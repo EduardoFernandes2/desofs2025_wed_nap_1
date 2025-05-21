@@ -18,6 +18,9 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 @Component
 @RequiredArgsConstructor
@@ -35,11 +38,27 @@ public class GraphQLProvider {
 
     @PostConstruct
     public void loadSchema() throws IOException {
-        File fileSchema = resource.getFile();
-        TypeDefinitionRegistry typeRegistry = new SchemaParser().parse(fileSchema);
-        RuntimeWiring wiring = buildRuntimeWiring();
-        GraphQLSchema schema = new SchemaGenerator().makeExecutableSchema(typeRegistry, wiring);
-        graphQL = GraphQL.newGraphQL(schema).build();
+        // Use InputStream instead of File
+        try (InputStream inputStream = resource.getInputStream()) {
+            // Read the InputStream into a String manually
+            StringBuilder schemaStringBuilder = new StringBuilder();
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+
+            // Read bytes from the InputStream into the buffer
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                schemaStringBuilder.append(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
+            }
+
+            // Convert StringBuilder to String
+            String schemaString = schemaStringBuilder.toString();
+
+            // Parse the schema string
+            TypeDefinitionRegistry typeRegistry = new SchemaParser().parse(schemaString);
+            RuntimeWiring wiring = buildRuntimeWiring();
+            GraphQLSchema schema = new SchemaGenerator().makeExecutableSchema(typeRegistry, wiring);
+            graphQL = GraphQL.newGraphQL(schema).build();
+        }
     }
 
     private RuntimeWiring buildRuntimeWiring() {
