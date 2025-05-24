@@ -149,4 +149,115 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.data.user.active", equalTo(true)))
                 .andExpect(jsonPath("$.data.user.roles[0]", equalTo(ROLE_USER)));
     }
+
+        @Test
+        public void getUserInfo_Unauthorized() throws Exception {
+                mockMvc.perform(get(API_V1_USERS))
+                                .andExpect(status().isFound());
+        }
+
+        @Test
+        @WithUserDetails(USER_EMAIL)
+        public void accessAdminRole_UserRole() throws Exception {
+                mockMvc.perform(get(API_V1_ADMIN))
+                                .andExpect(status().isNotFound());
+        }
+
+        @Test
+        public void getUserInfo_Unauthorized2() throws Exception {
+                mockMvc.perform(get(API_V1_USERS)
+                                .contentType(MediaType.APPLICATION_JSON_VALUE))
+                                .andExpect(status().isFound());
+        }
+
+        @Test
+        @WithUserDetails(USER_EMAIL)
+        public void updateUserInfo_OnlyFirstName() throws Exception {
+                UpdateUserRequest request = new UpdateUserRequest();
+                request.setFirstName("NewFirst");
+
+                mockMvc.perform(put(API_V1_USERS)
+                                .content(mapper.writeValueAsString(request))
+                                .contentType(MediaType.APPLICATION_JSON_VALUE))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.lastNameError", is(EMPTY_LAST_NAME)));
+        }
+
+        @Test
+        @WithUserDetails(USER_EMAIL)
+        public void updateUserInfo_OnlyLastName() throws Exception {
+                UpdateUserRequest request = new UpdateUserRequest();
+                request.setLastName("NewLast");
+
+                mockMvc.perform(put(API_V1_USERS)
+                                .content(mapper.writeValueAsString(request))
+                                .contentType(MediaType.APPLICATION_JSON_VALUE))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.firstNameError", is(EMPTY_FIRST_NAME)));
+        }
+
+        @Test
+        @WithUserDetails(USER_EMAIL)
+        public void updateUserInfo_InvalidJson_ShouldReturnBadRequest() throws Exception {
+                String invalidJson = "{firstName:John,lastName}";
+
+                mockMvc.perform(put(API_V1_USERS)
+                                .content(invalidJson)
+                                .contentType(MediaType.APPLICATION_JSON_VALUE))
+                                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @WithUserDetails(USER_EMAIL)
+        public void updateUserInfo_WithSameValues_ShouldReturnOk() throws Exception {
+                UpdateUserRequest request = new UpdateUserRequest();
+                request.setFirstName(FIRST_NAME);
+                request.setLastName(LAST_NAME);
+
+                mockMvc.perform(put(API_V1_USERS)
+                                .content(mapper.writeValueAsString(request))
+                                .contentType(MediaType.APPLICATION_JSON_VALUE))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.firstName").value(FIRST_NAME))
+                                .andExpect(jsonPath("$.lastName").value(LAST_NAME));
+        }
+
+        @Test
+        @WithUserDetails(USER_EMAIL)
+        public void getUserInfo_InvalidGraphQLField() throws Exception {
+                GraphQLRequest request = new GraphQLRequest();
+                request.setQuery("{ user { invalidField } }");
+
+                mockMvc.perform(post(API_V1_USERS + GRAPHQL)
+                                .content(mapper.writeValueAsString(request))
+                                .contentType(MediaType.APPLICATION_JSON_VALUE))
+                                .andExpect(status().isOk()) // GraphQL často vrací 200 i pro chyby
+                                .andExpect(jsonPath("$.errors").exists());
+        }
+
+        @Test
+        public void getCart_EmptyCart() throws Exception {
+                mockMvc.perform(post(API_V1_USERS + CART)
+                                .content(mapper.writeValueAsString(new ArrayList<>())))
+                                .andExpect(status().isUnsupportedMediaType());
+        }
+
+        @Test
+        public void getCart_WithEmptyBody() throws Exception {
+                mockMvc.perform(post(API_V1_USERS + CART)
+                                .content("[]")
+                                .contentType(MediaType.APPLICATION_JSON_VALUE))
+                                .andExpect(status().isOk());
+        }
+
+        @Test
+        public void getCart_WithDuplicatePerfumeIds() throws Exception {
+                List<Long> ids = List.of(2L, 2L);
+
+                mockMvc.perform(post(API_V1_USERS + CART)
+                                .content(mapper.writeValueAsString(ids))
+                                .contentType(MediaType.APPLICATION_JSON_VALUE))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.length()").value(1));
+        }
 }
